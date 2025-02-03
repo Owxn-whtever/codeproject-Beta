@@ -22,14 +22,17 @@ const String chatIds[][2] = {
 };
 const int chatCounts[] = {2, 2, 2}; // จำนวน chat ต่อบอท
 
-// ⚡ กำหนดขา GPIO สำหรับ IR Sensor
-const int irSensorPins[] = {D1, D2, D3, D4, D5}; 
-const int numSensors = sizeof(irSensorPins) / sizeof(irSensorPins[0]);
+// ⚡ กำหนดขา GPIO สำหรับ IR Sensors (แต่ละลิ้นชักมี 2 ตัว)
+const int numDrawers = 5;  // จำนวนลิ้นชัก
+const int irSensorPins[numDrawers][2] = { 
+    {D1, D2}, {D3, D4}, {D5, D6}, {D7, D8}, {D9, D10} 
+}; 
 
-bool previousState[numSensors]; 
-unsigned long lastDocumentTime[numSensors]; 
-const unsigned long debounceTime = 5000;  // เปลี่ยนเวลาหน่วงเป็น 5 วินาที
+bool previousState[numDrawers][2];  
+unsigned long lastTriggerTime[numDrawers][2]; 
+const unsigned long debounceTime = 5000;  // 5 วินาที (กำหนดเวลาหน่วง)
 
+// เชื่อมต่อ Telegram Bot
 WiFiClientSecure client;
 UniversalTelegramBot* bots[numBots];
 
@@ -49,16 +52,18 @@ void setup() {
     Serial.println(WiFi.localIP());
 
     // ⚡ ตั้งค่า Telegram Bots
-    client.setInsecure(); // ปิดการตรวจสอบ SSL
+    client.setInsecure();
     for (int i = 0; i < numBots; i++) {
         bots[i] = new UniversalTelegramBot(botTokens[i], client);
     }
 
     // ⚡ ตั้งค่า IR Sensors
-    for (int i = 0; i < numSensors; i++) {
-        pinMode(irSensorPins[i], INPUT);
-        previousState[i] = digitalRead(irSensorPins[i]);
-        lastDocumentTime[i] = 0;
+    for (int i = 0; i < numDrawers; i++) {
+        for (int j = 0; j < 2; j++) {
+            pinMode(irSensorPins[i][j], INPUT);
+            previousState[i][j] = digitalRead(irSensorPins[i][j]);
+            lastTriggerTime[i][j] = 0;
+        }
     }
 }
 
@@ -78,7 +83,6 @@ void sendNotificationToSpecificBot(int botIndex, const String& message) {
         if (sent) {
             Serial.println("✅ Notification sent successfully!");
         } else {
-            // ใช้ _lastError แทน getError
             Serial.println("❌ Failed to send notification. Error: " + String(bots[botIndex]->_lastError));
         }
     }
@@ -86,20 +90,36 @@ void sendNotificationToSpecificBot(int botIndex, const String& message) {
 
 // ⚡ Loop ตรวจสอบเซ็นเซอร์และแจ้งเตือน
 void loop() {
-    for (int i = 0; i < numSensors; i++) {
-        bool currentState = digitalRead(irSensorPins[i]);
+    for (int i = 0; i < numDrawers; i++) {
+        bool currentState[2] = { digitalRead(irSensorPins[i][0]), digitalRead(irSensorPins[i][1]) };
+        unsigned long currentTime = millis();
 
-        // ถ้าสถานะเปลี่ยนจาก HIGH -> LOW (มีการใส่เอกสาร)
-        if (previousState[i] == HIGH && currentState == LOW) {
-            unsigned long currentTime = millis();
-            if (currentTime - lastDocumentTime[i] > debounceTime) {
-                Serial.println("📄 Document detected in drawer " + String(i + 1));
-                sendNotificationToSpecificBot(0, "📄 มีเอกสารถูกใส่ในลิ้นชักที่ " + String(i + 1));
-                lastDocumentTime[i] = currentTime;
+        // ถ้าเอกสารผ่านเซ็นเซอร์ตัวที่ 1 ไปตัวที่ 2 ถือว่า "เข้า"
+        if (previousState[i][0] == HIGH && currentState[0] == LOW) {
+            lastTriggerTime[i][0] = currentTime;
+        }
+        if (previousState[i][1] == HIGH && currentState[1] == LOW) {
+            if (currentTime - lastTriggerTime[i][0] < debounceTime) {
+                Serial.println("📥 Document ENTERED in drawer " + String(i + 1));
+                sendNotificationToSpecificBot(0, "📥 มีเอกสารถูกใส่ในลิ้นชักที่ " + String(i + 1));
             }
         }
-        previousState[i] = currentState;
+
+        // ถ้าเอกสารผ่านเซ็นเซอร์ตัวที่ 2 ไปตัวที่ 1 ถือว่า "ออก"
+        if (previousState[i][1] == HIGH && currentState[1] == LOW) {
+            lastTriggerTime[i][1] = currentTime;
+        }
+        if (previousState[i][0] == HIGH && currentState[0] == LOW) {
+            if (currentTime - lastTriggerTime[i][1] < debounceTime) {
+                Serial.println("📤 Document EXITED from drawer " + String(i + 1));
+                sendNotificationToSpecificBot(0, "📤 มีเอกสารถูกนำออกจากลิ้นชักที่ " + String(i + 1));
+            }
+        }
+
+        // อัปเดตสถานะล่าสุดของเซ็นเซอร์
+        previousState[i][0] = currentState[0];
+        previousState[i][1] = currentState[1];
     }
 
-    delay(1000); // ลดการทำงานของ Loop
+    delay(500); // ลดการทำงานของ Loop
 }
