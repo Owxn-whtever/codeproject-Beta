@@ -3,40 +3,50 @@
 #include <UniversalTelegramBot.h>
 #include <SPI.h>
 
-// ⚡ WiFi Credentials
+// ✅ WiFi Credentials
 const char* ssid = "Owxn";            
 const char* password = "Owxn2409";    
 
-// ⚡ Telegram Bot Tokens และ Chat IDs
-const String botTokens[] = {
-    "7713083064:AAFNzaIMmlDjwM6nyl6z1eAwkKHY1Zcnu9Q",
-    "7702438986:AAEeokB03nKz0Y9s7Vs4VWi-U7pzHHVO8v8",
-    "8175471471:AAG3IpS62xQb_2pR-ZwfZnH_aVMy5ekjukw"
+// ✅ Telegram Bot Tokens (1 บอทต่อ 1 ชั้น)
+const char* botTokens[] = {
+  "7713083064:AAFNzaIMmlDjwM6nyl6z1eAwkKHY1Zcnu9Q", // Bot ชั้น 1
+  "7702438986:AAEeokB03nKz0Y9s7Vs4VWi-U7pzHHVO8v8", // Bot ชั้น 2
+  "8175471471:AAG3IpS62xQb_2pR-ZwfZnH_aVMy5ekjukw", // Bot ชั้น 3
+  "", // Bot ชั้น 4 (ยังไม่มี)
+  ""  // Bot ชั้น 5 (ยังไม่มี)
 };
-const int numBots = sizeof(botTokens) / sizeof(botTokens[0]);
 
-const String chatIds[][2] = { 
-    {"-4734652541"}, // บอท 1
-    {"-4767274518"},   // บอท 2
-    {"6928484464"}    // บอท 3
+// ✅ Chat IDs ของแต่ละบอท (1 ชั้นต่อ 1 บอท)
+const char* chatIds[] = {
+  "-4734652541",  // Chat ID ชั้น 1
+  "-4767274518",  // Chat ID ชั้น 2
+  "6928484464",   // Chat ID ชั้น 3
+  "",             // Chat ID ชั้น 4 (ยังไม่มี)
+  ""              // Chat ID ชั้น 5 (ยังไม่มี)
 };
-const int chatCounts[] = {2, 2, 2}; // จำนวน chat ต่อบอท
 
-// ⚡ กำหนดขา GPIO สำหรับ IR Sensors (แต่ละลิ้นชักมี 2 ตัว)
-const int numDrawers = 5;  // จำนวนลิ้นชัก
-const int irSensorPins[numDrawers][2] = { 
-    {D1, D2}, {D3, D4}, {D5, D6}, {D7, D8}, {D9, D10} 
-}; 
+// ✅ จำนวนชั้นที่ใช้งาน
+const int numDrawers = sizeof(botTokens) / sizeof(botTokens[0]);
 
-bool previousState[numDrawers][2];  
-unsigned long lastTriggerTime[numDrawers][2]; 
-const unsigned long debounceTime = 5000;  // 5 วินาที (กำหนดเวลาหน่วง)
+// ✅ กำหนด GPIO สำหรับ IR Sensors (1 คู่ต่อ 1 ชั้น)
+const int irPins[][2] = {
+    {D0, D1},  // ชั้น 1
+    {D2, D3},  // ชั้น 2
+    {D4, D5},  // ชั้น 3
+    {D6, D7},  // ชั้น 4
+    {D8, D9}   // ชั้น 5 (แก้ RX/TX เป็นขาอื่น)
+};
 
-// เชื่อมต่อ Telegram Bot
+// ✅ ตัวแปรสถานะ
+bool previousState[numDrawers][2]; 
+unsigned long lastTriggerTime[numDrawers]; 
+const unsigned long debounceTime = 3000; // ป้องกันการตรวจจับซ้ำ (3 วินาที)
+
+// ✅ WiFiClientSecure และ UniversalTelegramBot
 WiFiClientSecure client;
-UniversalTelegramBot* bots[numBots];
+UniversalTelegramBot* bots[numDrawers]; // 1 บอทต่อ 1 ชั้น
 
-// ⚡ **WiFi & Telegram Bot Initialization**
+// ✅ Setup Function
 void setup() {
     Serial.begin(115200);
     SPI.begin();
@@ -51,75 +61,80 @@ void setup() {
     Serial.print("📡 IP Address: ");
     Serial.println(WiFi.localIP());
 
-    // ⚡ ตั้งค่า Telegram Bots
+    // ⚡ ปิดการตรวจสอบ SSL
     client.setInsecure();
-    for (int i = 0; i < numBots; i++) {
-        bots[i] = new UniversalTelegramBot(botTokens[i], client);
-    }
 
     // ⚡ ตั้งค่า IR Sensors
     for (int i = 0; i < numDrawers; i++) {
-        for (int j = 0; j < 2; j++) {
-            pinMode(irSensorPins[i][j], INPUT);
-            previousState[i][j] = digitalRead(irSensorPins[i][j]);
-            lastTriggerTime[i][j] = 0;
+        pinMode(irPins[i][0], INPUT);
+        pinMode(irPins[i][1], INPUT);
+        previousState[i][0] = digitalRead(irPins[i][0]);
+        previousState[i][1] = digitalRead(irPins[i][1]);
+        lastTriggerTime[i] = 0;
+    }
+
+    // ✅ สร้างบอทแต่ละตัว (1 ชั้นต่อ 1 บอท)
+    for (int i = 0; i < numDrawers; i++) {
+        if (strlen(botTokens[i]) > 0) {
+            bots[i] = new UniversalTelegramBot(botTokens[i], client);
+        } else {
+            bots[i] = nullptr;  // ถ้าไม่มีโทเคน ให้กำหนดเป็น nullptr
         }
     }
 }
 
-// ⚡ ฟังก์ชันส่งข้อความไปยังบอทที่ระบุ
-void sendNotificationToSpecificBot(int botIndex, const String& message) {
+// ✅ ฟังก์ชันส่งข้อความไปยัง Telegram (เฉพาะบอทของชั้นนั้น)
+void sendNotification(int drawer, String direction) {
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("❌ WiFi ไม่เชื่อมต่อ");
         return;
     }
 
-    Serial.println("📩 Sending notification...");
-    for (int chatIndex = 0; chatIndex < chatCounts[botIndex]; chatIndex++) {
-        Serial.print("➡ Sending to Chat ID: ");
-        Serial.println(chatIds[botIndex][chatIndex]);
+    if (bots[drawer] == nullptr || strlen(chatIds[drawer]) == 0) {
+        Serial.println("⚠️ ไม่มีบอทสำหรับชั้นนี้ หรือไม่มี Chat ID");
+        return;
+    }
 
-        bool sent = bots[botIndex]->sendMessage(chatIds[botIndex][chatIndex], message, "Markdown");
-        if (sent) {
-            Serial.println("✅ Notification sent successfully!");
-        } else {
-            Serial.println("❌ Failed to send notification. Error: " + String(bots[botIndex]->_lastError));
-        }
+    String message = "📄 เอกสาร " + direction + " ที่ลิ้นชัก " + String(drawer + 1);
+    Serial.println("📩 " + message);
+
+    bool sent = bots[drawer]->sendMessage(chatIds[drawer], message, "Markdown");
+    if (sent) {
+        Serial.println("✅ ส่งข้อความสำเร็จไปยัง Bot ชั้น " + String(drawer + 1));
+    } else {
+        Serial.println("❌ ส่งข้อความล้มเหลวที่ Bot ชั้น " + String(drawer + 1));
     }
 }
 
-// ⚡ Loop ตรวจสอบเซ็นเซอร์และแจ้งเตือน
+// ✅ Loop ตรวจสอบเซ็นเซอร์
 void loop() {
     for (int i = 0; i < numDrawers; i++) {
-        bool currentState[2] = { digitalRead(irSensorPins[i][0]), digitalRead(irSensorPins[i][1]) };
+        bool currentState1 = digitalRead(irPins[i][0]);
+        bool currentState2 = digitalRead(irPins[i][1]);
+
         unsigned long currentTime = millis();
 
-        // ถ้าเอกสารผ่านเซ็นเซอร์ตัวที่ 1 ไปตัวที่ 2 ถือว่า "เข้า"
-        if (previousState[i][0] == HIGH && currentState[0] == LOW) {
-            lastTriggerTime[i][0] = currentTime;
-        }
-        if (previousState[i][1] == HIGH && currentState[1] == LOW) {
-            if (currentTime - lastTriggerTime[i][0] < debounceTime) {
-                Serial.println("📥 Document ENTERED in drawer " + String(i + 1));
-                sendNotificationToSpecificBot(0, "📥 มีเอกสารถูกใส่ในลิ้นชักที่ " + String(i + 1));
+        // ตรวจจับเอกสาร "เข้า" (Sensor 1 -> Sensor 2)
+        if (previousState[i][0] == LOW && currentState1 == HIGH && 
+            previousState[i][1] == HIGH && currentState2 == LOW) {
+            if (currentTime - lastTriggerTime[i] > debounceTime) {
+                sendNotification(i, "เข้า");
+                lastTriggerTime[i] = currentTime;
             }
         }
 
-        // ถ้าเอกสารผ่านเซ็นเซอร์ตัวที่ 2 ไปตัวที่ 1 ถือว่า "ออก"
-        if (previousState[i][1] == HIGH && currentState[1] == LOW) {
-            lastTriggerTime[i][1] = currentTime;
-        }
-        if (previousState[i][0] == HIGH && currentState[0] == LOW) {
-            if (currentTime - lastTriggerTime[i][1] < debounceTime) {
-                Serial.println("📤 Document EXITED from drawer " + String(i + 1));
-                sendNotificationToSpecificBot(0, "📤 มีเอกสารถูกนำออกจากลิ้นชักที่ " + String(i + 1));
+        // ตรวจจับเอกสาร "ออก" (Sensor 2 -> Sensor 1)
+        if (previousState[i][1] == LOW && currentState2 == HIGH && 
+            previousState[i][0] == HIGH && currentState1 == LOW) {
+            if (currentTime - lastTriggerTime[i] > debounceTime) {
+                sendNotification(i, "ออก");
+                lastTriggerTime[i] = currentTime;
             }
         }
 
-        // อัปเดตสถานะล่าสุดของเซ็นเซอร์
-        previousState[i][0] = currentState[0];
-        previousState[i][1] = currentState[1];
+        previousState[i][0] = currentState1;
+        previousState[i][1] = currentState2;
     }
 
-    delay(500); // ลดการทำงานของ Loop
+    delay(100);
 }
