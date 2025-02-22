@@ -12,7 +12,7 @@ const char* botTokens[] = {
   "7713083064:AAFNzaIMmlDjwM6nyl6z1eAwkKHY1Zcnu9Q", // Bot ชั้น 1
   "7702438986:AAEeokB03nKz0Y9s7Vs4VWi-U7pzHHVO8v8", // Bot ชั้น 2
   "8175471471:AAG3IpS62xQb_2pR-ZwfZnH_aVMy5ekjukw", // Bot ชั้น 3
-  "", // Bot ชั้น 4 (ยังไม่มี)
+  "7731694722:AAGIyRqH4XgT-Bh48aQWDWks0IN9x7mzveo", // Bot ชั้น 4 
   ""  // Bot ชั้น 5 (ยังไม่มี)
 };
 
@@ -20,13 +20,13 @@ const char* botTokens[] = {
 const char* chatIds[] = {
   "-4734652541",  // Chat ID ชั้น 1
   "-4767274518",  // Chat ID ชั้น 2
-  "6928484464",    // Chat ID ชั้น 3
-  "",            // Chat ID ชั้น 4 (ยังไม่มี)
+  "-4708772755",  // Chat ID ชั้น 3
+  "-4729985406", // Chat ID ชั้น 4 
   ""            // Chat ID ชั้น 5 (ยังไม่มี)
 };
 
 // ✅ จำนวนชั้นที่ใช้งาน
-const int numDrawers = sizeof(botTokens) / sizeof(botTokens[0]);
+const int numDrawers = sizeof(botTokens) / sizeof(botTokens[0]);;
 
 // ✅ กำหนด GPIO สำหรับ IR Sensors (1 คู่ต่อ 1 ชั้น)
 const int irPins[][2] = {
@@ -120,7 +120,7 @@ void loop() {
         unsigned long timeElapsed = currentTime - entryStartTime[i];
         if (timeElapsed >= 1000 && currentState2 == LOW) { // เพิ่มเงื่อนไข currentState2 == LOW
           documentCount[i]++;
-          String message = "Your document coming (" + String(documentCount[i]) + ")";
+          String message = "🔔 มีเอกสารส่งถึงคุณ! เช็กที่ลิ้นชักเลย";
           sendNotification(i, message);
           entryStartTime[i] = 0;
         }
@@ -131,7 +131,7 @@ void loop() {
         if (previousState[i][1] == LOW && currentState2 == HIGH && 
             previousState[i][0] == HIGH && currentState1 == LOW) {
             if (currentTime - lastTriggerTime[i] > debounceTime) {
-                sendNotification(i, "Your Document out");
+                sendNotification(i, "📜 เอกสารถูกนำออก! หากไม่ใช่คุณ โปรดตรวจสอบ");
                 lastTriggerTime[i] = currentTime;
             }
         }
