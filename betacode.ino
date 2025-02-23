@@ -10,23 +10,23 @@ const char* password = "Owxn2409";
 // ✅ Telegram Bot Tokens (1 บอทต่อ 1 ชั้น)
 const char* botTokens[] = {
   "7713083064:AAFNzaIMmlDjwM6nyl6z1eAwkKHY1Zcnu9Q", // Bot ชั้น 1
-  "7702438986:AAEeokB03nKz0Y9s7Vs4VWi-U7pzHHVO8v8", // Bot ชั้น 2
+  "7731694722:AAGIyRqH4XgT-Bh48aQWDWks0IN9x7mzveo", // Bot ชั้น 2
   "8175471471:AAG3IpS62xQb_2pR-ZwfZnH_aVMy5ekjukw", // Bot ชั้น 3
-  "7731694722:AAGIyRqH4XgT-Bh48aQWDWks0IN9x7mzveo", // Bot ชั้น 4 
+  "", // Bot ชั้น 4 (ยังไม่มี)
   ""  // Bot ชั้น 5 (ยังไม่มี)
 };
 
 // ✅ Chat IDs ของแต่ละบอท (1 ชั้นต่อ 1 บอท)
 const char* chatIds[] = {
   "-4734652541",  // Chat ID ชั้น 1
-  "-4767274518",  // Chat ID ชั้น 2
-  "-4708772755",  // Chat ID ชั้น 3
-  "-4729985406", // Chat ID ชั้น 4 
+  "-4762809799",  // Chat ID ชั้น 2
+  "6928484464",    // Chat ID ชั้น 3
+  "",            // Chat ID ชั้น 4 (ยังไม่มี)
   ""            // Chat ID ชั้น 5 (ยังไม่มี)
 };
 
 // ✅ จำนวนชั้นที่ใช้งาน
-const int numDrawers = sizeof(botTokens) / sizeof(botTokens[0]);;
+const int numDrawers = sizeof(botTokens) / sizeof(botTokens[0]);
 
 // ✅ กำหนด GPIO สำหรับ IR Sensors (1 คู่ต่อ 1 ชั้น)
 const int irPins[][2] = {
